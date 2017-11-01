@@ -2,84 +2,76 @@ const express = require('express');
 const path = require('path');
 const app = express();
 const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
 
 mongoose.connect(`mongodb://${process.env.RED_HOME_DB}`);
 const db = mongoose.connection;
-db.once("open", function () {
+db.once("open", () => {
     console.log("DB Connected!!");
 });
-db.on("error", function (err) {
+db.on("error", (err) => {
     console.log("DB Error: ", err);
 });
 
-const dataSchema = mongoose.Schema({
-    name: String,
-    count: Number
+const postSchema = mongoose.Schema({
+    title: { type: String, required: true },
+    body: { type: String, require: true },
+    createdAt: { type: String, default: Date.now },
+    updateAt: Date
 });
 
-const Data = mongoose.model('data', dataSchema);
-Data.findOne({name: "myData"}, function (err, data) {
-    if (err) return console.log("Data Error : ", err);
-    if (!data) {
-        Data.create({name: "myData", count:0 }, function (err, data) {
-            if (err) return console.log("Data Error : ", err); 
-            console.log("Counter initialized :", data);
-        });
-    }
-});
+const Post = mongoose.model('post', postSchema);
 
 app.set("view engine", 'ejs');
 app.use(express.static(path.join(__dirname, '/public')));
+app.use(bodyParser.json());
 
-app.get('/', function (req, res) {
-    Data.findOne({name: "myData"}, function (err, data) {
-        if (err) return console.log("Data Error : ", err); 
-        data.count++;
-        data.save(function (err) {
-            if (err) return console.log("Data Error : ", err); 
-            res.render('my_first_ejs', data);
-        });
+app.get('/posts', (req, res) => {
+    Post.find({}, (err, posts) => {
+        if (err) {
+            return res.json({ success: false, message: err });
+        }
+        res.json({ success: true, data: posts })
     });
 });
 
-app.get('/reset', function (req, res) {
-    setCounter(res, 0);
+app.post('/posts', (req, res) => {
+    Post.create(req.body.post, (err, post) => {
+        if (err) {
+            return res.json({ success: false, message: err });
+        }
+        res.json({ success: true, data: post })
+    });
+});;
+
+app.get('/posts/:id', (req, res) => {
+    Post.findById(req.params.id, (err, post) => {
+        if (err) {
+            return res.json({ success: false, message: err });
+        }
+        res.json({ success: true, data: post })
+    });
 });
 
-app.get('/set/count', function (req, res) {
-    if(req.query.count) 
-        data.count = req.query.count;
-    else
-        getCounter(res);
-});
+app.put('/posts/:id', (req, res) => {
+    req.body.post.updateAt = Date.now();
+    Post.findByIdAndUpdate(req.params.id, req.body.post, (err, post) => {
+        if (err) {
+            return res.json({ success: false, message: err });
+        }
+        res.json({ success: true, message: post.id + " updated" });
+    });
+});;
 
-app.get('/set/:num', function (req, res) {
-    if (req.param.num) 
-        setCounter(res, req.params.num);
-    else
-        getCounter(res);
-});
+app.delete('/posts/:id', (req, res) => {
+    Post.findByIdAndRemove(req.params.id, (err, post) => {
+        if (err) {
+            return res.json({ success: false, message: err });
+        }
+        res.json({ success: true, message: post.id + " deleted" });
+    });
+});;
 
-function setCounter(res, num) {
-    console.log("setCounter");
-    Data.findOne({name: "myData"}, function (err, data) {
-        if (err) return console.log("Data Error : ", err); 
-        data.count = num;
-        data.save(function (err) {
-            if (err) return console.log("Data Error : ", err); 
-            res.render('my_first_ejs', data);
-        });
-    }); 
-}
-
-function getCounter(res) {
-    console.log("getCounter");
-    Data.findOne({name: "myData"}, function (err, data) {
-        if (err) return console.log("Data Error : ", err); 
-        res.render('my_first_ejs', data);
-    }); 
-}
-
-app.listen(3000, function() {
+app.listen(3000, () => {
     console.log('Server started.');
 });
